@@ -1,125 +1,100 @@
+import 'dart:async';
+import 'dart:core';
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: CookieTestPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
+class CookieTestPage extends StatefulWidget {
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  _CookieTestPageState createState() => _CookieTestPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
+class _CookieTestPageState extends State<CookieTestPage> {
+  late InAppWebViewController _webViewController;
+  final CookieManager _cookieManager = CookieManager.instance();
+  final _url = "https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies";
+  final _domain = "developer.mozilla.org";
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: Text('InAppWebView Cookie Test'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: () {
+              _webViewController.reload();
+            },
+          ),
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+      body: RefreshIndicator(
+        onRefresh: () async {
+          _webViewController.reload();
+        },
+        child: InAppWebView(
+          onWebViewCreated: (controller) async {
+            _webViewController = controller;
+            await _setAndGetCookie();
+            await controller.loadUrl(
+              urlRequest: URLRequest(url: WebUri(_url)),
+            );
+          },
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
+  }
+
+  Future<void> _setAndGetCookie() async {
+    // Log the current UTC time
+    final nowUtc = DateTime.now().toUtc();
+    developer.log('【Cookie Test】Current UTC Time: $nowUtc');
+
+    // Initialize cookies by deleting all existing cookies
+    await _cookieManager.deleteAllCookies();
+    developer.log('【Cookie Test】All cookies have been deleted.');
+
+    // Get cookies before setting a new one and log the result
+    final cookiesBeforeSet = await _cookieManager.getCookies(
+      url: WebUri(_domain),
+    );
+    developer.log('【Cookie Test】Cookies before setting: $cookiesBeforeSet');
+
+    // Set the expiration date for 30 minutes from now
+    final expiresDate =
+        DateTime.now().add(const Duration(minutes: 30)).millisecondsSinceEpoch;
+    developer.log(
+        '【Cookie Test】Expiration date (milliseconds since epoch): $expiresDate');
+
+    // Set a new cookie
+    await _cookieManager.setCookie(
+      url: WebUri(_url),
+      name: "testCookie",
+      domain: _domain,
+      value: "12345",
+      expiresDate: expiresDate,
+    );
+    developer.log('【Cookie Test】Cookie has been set.');
+
+    // Get cookies after setting the new one and log the result
+    final cookies = await _cookieManager.getCookies(
+      url: WebUri(_url),
+    );
+    developer.log('【Cookie Test】Cookies after setting: $cookies');
   }
 }
